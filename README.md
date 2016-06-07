@@ -3,11 +3,11 @@ A visual file manager
 
 # Screenshots
 
-[1_Explore.png](1_Explore.png)
-[2_Filter.png](2_Filter.png)
-[3_Lasso.png](3_Lasso.png)
-[4_Classify.png](4_Classify.png)
-[5_ImageGallery.png](5_ImageGallery.png)
+![1_Explore.png](1_Explore.png)
+![2_Filter.png](2_Filter.png)
+![3_Lasso.png](3_Lasso.png)
+![4_Classify.png](4_Classify.png)
+![5_ImageGallery.png](5_ImageGallery.png)
 
 # Windows
 
