@@ -1,6 +1,14 @@
 # mu
 A visual file manager
 
+# Screenshots
+
+[1_Explore.png](1_Explore.png)
+[2_Filter.png](2_Filter.png)
+[3_Lasso.png](3_Lasso.png)
+[4_Classify.png](4_Classify.png)
+[5_ImageGallery.png](5_ImageGallery.png)
+
 # Windows
 
 Download and run : https://github.com/smigniot/mu/releases/download/1.0/Mu_win64_1.0.zip
@@ -8,13 +16,13 @@ Download and run : https://github.com/smigniot/mu/releases/download/1.0/Mu_win64
 # Linux
 
 Download Electron :
-wget https://github.com/electron/electron/releases/download/v1.2.1/electron-v1.2.1-linux-x64.zip;
+```wget https://github.com/electron/electron/releases/download/v1.2.1/electron-v1.2.1-linux-x64.zip```
 
 Download Mu :
-wget https://github.com/smigniot/mu/archive/master.zip;
+```wget https://github.com/smigniot/mu/archive/master.zip```
 
 Unzip all in $ELECTRON and $MU and run :
-$ELECTRON/electron $MU
+```$ELECTRON/electron $MU```
 
 # Usage
 
