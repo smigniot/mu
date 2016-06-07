@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width" />
+        <title>Mu</title>
+        <style type="text/css">
+            html,body { 
+                height: 100%; 
+                margin: 0px;
+                padding: 0px;
+                background: linear-gradient(0deg,#DFDFDF,#F9F9F9);
+            }
+            input.search {
+                border: 1px solid silver;
+                border-radius: 2px;
+            }
+            input.search:focus {
+                box-shadow: 0px 0px 3px rgb(43, 130, 171);
+            }
+            input.shaded {
+                background: rgba(255,255,255,0.1);
+                border: 0;
+                color: white;
+                box-shadow: 1px 1px 1px rgba(255,255,255,0.1);
+                padding:0;
+
+                max-width: 200px;
+                font-weight:bold;
+                font-size:24px;
+                line-height:125%;
+                font-family:sans-serif;
+            }
+            .vanish {
+                animation-duration: 2s;
+                animation-name: vanish;
+            }
+            @keyframes vanish {
+                0% {   opacity:1;}
+                100% { opacity:0;}
+            }
+
+            svg.timeline {
+                position: fixed;
+                width:100%;
+                height:128px;
+                bottom:0;
+                display:block;
+            }
+            .timeline rect {
+              fill: steelblue;
+            }
+
+            .timeline text {
+              fill: white;
+              font: 10px sans-serif;
+              text-anchor: middle;
+            }
+
+            .node circle {
+              cursor: pointer;
+              stroke: #3182bd;
+              stroke-width: 1.5px;
+            }
+            .node circle.fsnode {
+                filter:url(#dropshadow);
+            }
+
+            .node text.fsnode {
+              font: 8pt Consolas,"Courier New",Courier,monospace;
+              pointer-events: none;
+              fill: black;
+              text-shadow: 1px 1px 1px silver;
+              text-anchor: middle;
+            }
+            .node:hover text.fsnode {
+              fill: rgba(0,0,0,0.2);
+            }
+
+            .node .tooltip {
+              display:none;
+              filter:url(#dropwhite);
+            }
+            .node:hover .tooltip {
+              display:block;
+            }
+            .tooltip text {
+              letter-spacing: -1px;
+              font-family: 'Open Sans',Arial,sans-serif;
+              pointer-events: none;
+              fill: black;
+            }
+            .tooltip text.fsname {
+              font-size: 2.143rem;
+              font-weight: 700;
+            }
+            .tooltip text.fsdate {
+              font-size: 1rem;
+              font-weight: 700;
+            }
+
+            line.link {
+              fill: none;
+              stroke: #9ecae1;
+              stroke-width: 1.5px;
+            }
+
+            .lasso path {
+              stroke: rgb(80,80,80);
+              stroke-width:2px;
+            }
+
+            .lasso .drawn {
+              fill-opacity:.05 ;
+            }
+
+            .lasso .loop_close {
+              fill:none;
+              stroke-dasharray: 4,4;
+            }
+
+            .lasso .origin {
+              fill:#3399FF;
+              fill-opacity:.5;
+            }
+
+            .not_possible {
+            }
+            .possible text.fsnode {
+              text-shadow: 1px 1px 1px black;
+            }
+
+            .bar text {
+                font: 10px sans-serif;
+                fill:white;
+            }
+            .axis {
+                font: 10px sans-serif;
+            }
+            .axis path, .axis line {
+                fill: none;
+                stroke: #000;
+                shape-rendering: crispEdges;
+            }
+            .bar:hover {
+                fill:maroon;
+            }
+            
+            .glassy {
+                fill: rgba(0,0,0, 0.1);
+                stroke: silver;
+            }
+            .shadowed {
+                filter:url(#dropshadow);
+            }
+        </style>
+        <script type="text/javascript" src="jquery.min.js">
+        </script>
+        <script type="text/javascript" src="d3.min.js">
+        </script>
+        <script type="text/javascript" src="crossfilter.min.js">
+        </script>
+        <script type="text/javascript" src="filesize.min.js">
+        </script>
+        <script type="text/javascript" src="moment.min.js">
+        </script>
+        <script type="text/javascript" src="lasso.js">
+        </script>
+        <script type="text/javascript" src="treeforce.js">
+        </script>
+        <script type="text/javascript" src="windowed.js">
+        </script>
+        <script type="text/javascript" src="imagegallery.js">
+        </script>
+        <script type="text/javascript">
+            function boot() {
+                var FILES = "/Work";
+                var EXTENSIONS = {
+                    "Audio" :    "aac,aif,dts,m3u,wma,mid,mpga,mp4a,mp3,wav,ogg",
+                    "Image" :    "bmp,gif,ico,jpeg,jpg,psd,pic,pnm,pbm,pgm,png,ppm,svg,tiff,xbm,xpm",
+                    "Document" : "doc,docx,ppt,pptx,xls,xlsx,odf,odt,ods,pdf",
+                    "Text" :     "txt,csv,json,xml,README,md,java,c,cpp,h,py,log",
+                    "System" :   "exe,bat,lnk,sh,ini,properties,conf",
+                    "Video" :    "mp4,mpg,avi,ogv",
+                }
+                var DY = 12;
+
+                function _(tag,attrs) {
+                    attrs = attrs || {};
+                    var result = ("xmlns" in attrs)
+                        ?document.createElementNS(attrs["xmlns"], tag)
+                        :document.createElement(tag);
+                    Object.keys(attrs).forEach(function(attr) {
+                        if("xmlns" != attr)
+                            result.setAttribute(attr, attrs[attr]);
+                    });
+                    return result;
+                }
+                var params = (function() {
+                    var str = window.location.search;
+                    var objURL = {};
+                    str.replace(
+                        new RegExp( "([^?=&]+)(=([^&]*))?", "g" ),
+                        function( $0, $1, $2, $3 ){
+                            objURL[ $1 ] = $3;
+                        }
+                    );
+                    return objURL;
+                })();
+
+                function text(id,s) {
+                    document.querySelector("#"+id+" tspan").textContent = s;
+                };
+                text("browsing_space", document.location.host);
+                text("path", document.location.pathname);
+                text("department", "File Access");
+
+                text("field1", "ID");
+                text("name", "Anonymous");
+                text("field2", "PASS");
+                text("identifier", "*********");
+                text("field3", "PHASE");
+                text("position", "Enter password");
+
+                function feedback(t,p) {
+                    text("position", t);
+                    progress(p);
+                }
+                function login() {
+                    text("position", "Reading values");
+                    var user = document.querySelector("#login_input").value;
+                    var pass = document.querySelector("#pass_input").value;
+                    text("position", "Login in");
+                    var xhr = new XMLHttpRequest();
+                    function granted() {
+                        if(xhr.status < 300) {
+                            feedback("Access granted",0.4); 
+                        } else if((401 == xhr.status) || (403 == xhr.status)) {
+                            feedback("Access denied",0); 
+                        } else {
+                            feedback("Unknown error",0); 
+                        }
+                    }
+
+                    function auth(x) {
+                        x.setRequestHeader("Authorization","Basic "+btoa(user+":"+pass));
+                    }
+                    xhr.onreadystatechange = function(event) {
+                        if(1 == xhr.readyState) { 
+                            feedback("Request sent",0.1); 
+                        } else if(2 == xhr.readyState) { 
+                            feedback("Server replied",0.2); 
+                            granted();
+                        } else if(4 == xhr.readyState) { 
+                            if(200 == xhr.status) {
+                                feedback("Files accessed",1); 
+                                beginload(xhr.responseURL,auth);
+                            } else {
+                                granted();
+                            }
+                        }
+                    }
+                    xhr.open("HEAD", FILES);
+                    auth(xhr);
+                    text("position", "Sending request");
+                    xhr.send();
+                }
+
+                ["#login_input","#pass_input"].forEach(function(s) {
+                    var e = document.querySelector(s);
+                    e.addEventListener("keyup", function(event) {
+                        if(13 == event.keyCode) login();
+                    });
+                });
+                document.querySelector("#pass_input")
+                .addEventListener("blur", function(event) {
+                    login();
+                });
+                function progress(n) {
+                    document.querySelector("#progress")
+                        .setAttribute("width", Math.round(Math.max(0,
+                            Math.min(460,n*460.))));
+                }
+                progress(0);
+                document.querySelector("#login_input").focus();
+
+                function beginload(url,auth) {
+                    text("name", document.querySelector("#login_input").value);
+                    ["#login_input","#pass_input"].forEach(function(s) {
+                        var e = document.querySelector(s);
+                        var fo = e.parentNode;
+                        var sw = fo.parentNode;
+                        sw.removeChild(fo);
+                        sw.querySelector("text").style.display = "";
+                    });
+                    text("field3", "LOADING");
+                    progress(0);
+                    walk(url,auth);
+                }
+                function walkget(url,auth,callback) {
+                    var x = new XMLHttpRequest();
+                    var response = "";
+                    var children = [];
+                    var files = [];
+                    x.onreadystatechange = function() {
+                        if((4 == x.readyState) && (200 == x.status)) {
+                            response = x.responseText;
+                            var mime = x.getResponseHeader("Content-Type") || "";
+                            if(mime.match(/^text\/html/i)) {
+                                response.split(/[\r\n]+/).forEach(function(line) {
+                                    if(line.match(/^\s*<a href.*\s+-\s*$/)) {
+                                        var uri = line.split(/"/g)[1];
+                                        children.push({url:unescape(url+uri)});
+                                    } else if(line.match(/^\s*<a href.*\s+\d+\s*$/)) {
+                                        var uri = line.split(/"/g)[1];
+                                        var afterA = line.split(/<\/a>/)[1].trim();
+                                        var parts = afterA.split(/  +/g);
+                                        var dc = new Date(parts[0].replace(/-/g," "));
+                                        if(isNaN(dc)) {
+                                            console.log("AARGH ", line);
+                                        }
+                                        files.push({
+                                            "type":"file",
+                                            url:unescape(url+uri),
+                                            date:dc,
+                                            size:+(parts[1])
+                                        });
+                                    }
+                                });
+                            }
+                            callback({
+                                response:response,
+                                children:children,
+                                files:files,
+                            });
+                        } else if(4 == x.readyState) {
+                            console.log("["+x.status+" "+x.statusText+"] "+x.responseURL);
+                            callback({
+                                response:response,
+                                children:children,
+                                files:files,
+                            });
+                        }
+                    }
+                    x.open("GET", url);
+                    auth(x);
+                    x.send();
+                }
+                function fswalk(dir, remaining, seen, files) {
+                    remaining = remaining || [];
+                    seen = seen || [];
+                    files = files || [];
+
+                    document.querySelector("#filename tspan").textContent = dir;
+                    document.querySelector("#position tspan").textContent = (
+                            ""+files.length+"/"+seen.length);
+                    seen.push({"type":"directory", url:dir});
+                    var fs = require("fs");
+                    var path = require("path");
+                    var list = fs.readdirSync(dir);
+                    list.forEach(function(file) {
+                        var target = path.resolve(dir,file);
+                        var stat = fs.statSync(target);
+                        if(stat && stat.isDirectory()) {
+                            remaining.push(target);
+                        } else {
+                            files.push({
+                                "type":"file",
+                                url:target,
+                                date:stat.mtime || new Date(),
+                                size:stat.size || 0
+                            });
+                        }
+                    });
+                    progress(1/Math.max(1,remaining.length));
+                    if(remaining.length) {
+                        var next = remaining.splice(0,1)[0];
+                        setTimeout(function() {
+                            fswalk(next, remaining, seen, files);
+                        },1);
+                    } else {
+                        walked(seen, files, true);
+                    }
+                }
+                function walk(url, auth, dirs, files, seen, current) {
+                    dirs = dirs || [];
+                    files = files || [];
+                    seen = seen || [];
+                    current = current || [];
+                    walkget(url,auth,function(result) {
+                        var dir = {"type":"directory", url:url};
+                        seen.push(dir);
+                        document.querySelector("#filename tspan").textContent = url;
+                        result.children.forEach(function(c) { dirs.push(c.url); });
+                        result.files.forEach(function(f) { files.push(f); });
+                        document.querySelector("#position tspan").textContent = (
+                            ""+files.length+"/"+seen.length);
+                        progress(1/Math.max(1,dirs.length));
+                        if(dirs.length) {
+                            var d = dirs.pop();
+                            walk(d, auth, dirs, files, seen, dir.children);
+                        } else {
+                            walked(seen, files);
+                        }
+                    });
+                }
+                function walked(seen, files, isElectron) {
+                    var PARENTREX = /(\/[^\/]*|\\[^\\]*)$/;
+                    var TRIMREX = /[\/\\]+$/;
+                    var SPLITREX = /[\/\\]+/;
+                    document.querySelector("#position tspan").textContent = "Analyzing";
+                    progress(0);
+                    var total = seen.length+files.length,
+                        i=0;
+                    var fstree = {};
+                    seen.forEach(function(dir) {
+                        var url = dir.url.replace(TRIMREX,"");
+                        fstree[url] = dir;
+
+                        if(!dir.children) dir.children = [];
+                        var splits = url.split(SPLITREX);
+                        dir.type = "dir";
+                        dir.depth = splits.length;
+                        dir.name = splits.pop();
+                        dir.size = 0;
+                        var parent = url.replace(PARENTREX,"");
+                        var dirup = fstree[parent];
+                        if(dirup) {
+                            dir.parent = dirup;
+                            dirup.children.push(dir);
+                        }
+
+                        progress((++i)/total);
+                    });
+
+                    files.forEach(function(file) {
+                        var url = file.url.replace(TRIMREX,"");
+                        var parent = url.replace(PARENTREX,"");
+                        var dirup = fstree[parent];
+                        if(dirup) {
+                            var splits = url.split(SPLITREX);
+                            file.type = "file";
+                            file.depth = splits.length;
+                            file.name = splits.pop();
+                            file.parent = dirup;
+                            dirup.children.push(file);
+                            var cur = dirup;
+                            while(cur) {
+                                cur.size += file.size;
+                                cur.date = cur.date || 0;
+                                cur.date = Math.max(+(cur.date || 0),file.date);
+                                cur = cur.parent;
+                            }
+                        }
+
+                        progress((++i)/total);
+                    });
+                    var fsroot = fstree[seen[0].url.replace(/\/+$/,"")];
+
+                    var lp = document.querySelector("#loginpanel");
+                    lp.setAttribute("class","vanish");
+                    lp.style.opacity = 0;
+                    setTimeout(function() {
+                        lp.style.display = "none";
+                    }, 3000);
+                    var root = lp.parentNode;
+                    // too bad for old desktops
+                    d3.select(root)
+                        .selectAll("svg.desktop")
+                        .remove();
+                    var desktop = _("svg", {"xmlns":"http://www.w3.org/2000/svg",
+                        "xmlns:xlink":"http://www.w3.org/1999/xlink",
+                        "class":"desktop",width:"100%",height:"100%",
+                        "style":"display:block;margin:0;padding:0;"});
+                    desktop.innerHTML = (''
+                        +'<filter id="dropshadow" x="-40%" y="-40%" height="200%" width="200%">'
+                        +'<feGaussianBlur in="SourceAlpha" stdDeviation="3"/>'
+                        +'<feComponentTransfer>'
+                        +'<feFuncA type="linear" slope="0.6"></feFuncA>'
+                        +'</feComponentTransfer>'
+                        +'<feOffset dx="2" dy="2" result="offsetblur"/>'
+                        +'<feMerge><feMergeNode/>'
+                        +'<feMergeNode in="SourceGraphic"/>'
+                        +'</feMerge></filter>'
+                        +'<filter id="dropwhite" x="-40%" y="-40%" height="200%" width="200%">'
+                        +'<feGaussianBlur in="SourceAlpha" stdDeviation="4"/>'
+                        +'<feComponentTransfer>'
+                        +'<feFuncA type="linear" slope="0.8"></feFuncA>'
+                        +'</feComponentTransfer>'
+                        +'<feOffset dx="0" dy="0" result="offsetblur"/>'
+                        +'<feMerge><feMergeNode/>'
+                        +'<feMergeNode in="SourceGraphic"/>'
+                        +'</feMerge></filter>'
+                    );
+                    lp.style.position = 'absolute';
+                    root.appendChild(desktop);
+
+                    document.querySelector("#position tspan").textContent = "Analyzed";
+                    var PUSHED = 0;
+                    console.log("DBG", fsroot);
+                    (function recurse(n) {
+                        if(!n.id) n.id = ++PUSHED;
+                        n.active = true;
+                        (n.children || []).forEach(recurse);
+                    })(fsroot);
+
+                    graph(desktop,fsroot,isElectron);
+                }
+                function flatten(n) {
+                    var nodes = [];
+                    function flatrec(c) {
+                        nodes.push(c);
+                        (c.children || []).forEach(flatrec);
+                    }
+                    flatrec(n);
+                    return nodes;
+                }
+                function graph(desktop, fsroot,isElectron) {
+                    var div = $("<div style='z-index:255;position:fixed;bottom:4px;left:50%'>"
+                        +"<div style='position:relative'>"
+                        +"<div style='margin-left:-50%'>"
+                        +"<input class='search' type='text' />"
+                        +"'</div></div></div>");
+                    var searchinput = div.find("input");
+                    $(document.body).append(div);
+                    
+                    var previousRemove = 0;
+                    var update = treeforce(desktop, function() {
+                        var regex = null;
+                        try { regex = new RegExp(searchinput.val(),"i"); }
+                        catch(e) { 
+                            console.log("REGEX", e);
+                            regex = new RegExp(""); 
+                        };
+                        console.log("REGAPPLY", regex);
+                        (function recact(c) {
+                            c.active = !!(regex.exec(c.name));
+                            if(c.active) {
+                                var cur = c.parent;
+                                while(cur) {
+                                    cur.active = true;
+                                    cur = cur.parent;
+                                }
+                            }
+                            (c.children || []).forEach(recact);
+                        })(fsroot);
+                        return fsroot;
+                    }, function(type, lasso) {
+                        if("start" == type) {
+                            previousRemove = d3.selectAll(".summary").remove().size();
+                            (function delsel(c) {
+                                c.selected = false;
+                                c.possible = false;
+                                (c.children || []).forEach(delsel);
+                            })(fsroot);
+                        }
+                        if("draw" == type) {
+                            // Style the possible dots
+                            lasso.items().filter(function(d) {return d.possible===true})
+                                .classed({"not_possible":false,"possible":true});
+
+                            // Style the not possible dot
+                            lasso.items().filter(function(d) {return d.possible===false})
+                                .classed({"not_possible":true,"possible":false});
+                        }
+                        if("end" == type) {
+                            var selection = [];
+                            (function getsel(c) {
+                                if(c.selected) {
+                                    selection.push(c);
+                                }
+                                (c.children || []).forEach(getsel);
+                            })(fsroot);
+                            if(!selection.length) {
+                                if(previousRemove == 0) {
+                                    function allsel(n) {
+                                        if(n.active) {
+                                            selection.push(n);
+                                        }
+                                        (n.children || []).forEach(allsel);
+                                    }
+                                    allsel(fsroot);
+                                }
+                            }
+                            lasso.items().classed({"not_possible":false,"possible":false});
+                            if(selection.length) {
+                                newSelection(desktop, selection);
+                            }
+                        }
+                    }, function(d) {
+                        if (d3.event.defaultPrevented) return;
+                        if(isElectron) {
+                            require("shell").openItem(d.url);
+                        } else {
+                            window.open(unescape(d.url));
+                        }
+                    });
+
+                    update();
+                    if("filter" in params) {
+                        searchinput.val(params["filter"]);
+                        update();
+                    }
+                    searchinput.bind("change input", update);
+                }
+
+                var flattenedExt = {};
+                var catColor = d3.scale.category10();
+                var types = Object.keys(EXTENSIONS);
+                types.sort();
+                types.forEach(function(type) {
+                    EXTENSIONS[type].split(/,/g).forEach(function(ext) {
+                        flattenedExt[ext.trim().toLowerCase()] = type;
+                    });
+                    catColor(type);
+                });
+                var SELID = 0;
+                function newSelection(desktop,selection) {
+                    var domNodes = d3.select(desktop)
+                        .selectAll("g.node")
+                        .filter(function(d) { return d.selected; });
+                    var totaltype = (function() {
+                        var sums = {};
+                        selection.forEach(function(d) {
+                            sums[d.type] = (sums[d.type] || 0) + 1;
+                        });
+                        return sums;
+                    })();
+                    var totalcategory = (function() {
+                        var sums = {};
+                        selection.forEach(function(d) {
+                            var t = flattenedExt[d.name.split(/[.]+/g).pop().trim().toLowerCase()];
+                            if(t) {
+                                sums[t] = (sums[t] || 0) + 1;
+                            }
+                        });
+                        var keys = Object.keys(sums);
+                        keys.sort();
+                        return keys.map(function(k) {
+                            return {name:k,value:sums[k]};
+                        });
+                    })();
+
+                    var xspan = d3.extent(selection, function(d){return d.x});
+                    var yspan = d3.extent(selection, function(d){return d.y});
+                    var cx = d3.mean(xspan);
+                    var cy = d3.mean(yspan);
+
+                    var info = d3.select(desktop)
+                        .append("g")
+                        .attr("class","summary")
+                        .attr("transform","translate("+cx+","+cy+")")
+                        ;
+
+                    var DR = 16;
+                    var r0 = 48;
+                    var r1 = r0+DR;
+                    var nfo = totaltype["dir"] || 0;
+                    var nfi = totaltype["file"] || 0;
+                    var a0 = Math.PI-(Math.PI*nfi/Math.max(1, nfi+nfo));
+                    
+                    // 1. Files/Folders ratio arcs
+                    info.append("path").attr("d", 
+                        "M -"+r0+",0 L -"+r1+",0"
+                        +" A "+r1+","+r1+" 0 0,1 "+r1+",0"
+                        +" L "+r0+",0"
+                        +" A "+r0+","+r0+" 0 0,0 -"+r0+",0"
+                        +" Z"
+                        )
+                        .attr("class","shadowed")
+                        .attr("fill","none")
+                        .attr("stroke","silver")
+                        ;
+                    var x0 = Math.floor(r0*Math.cos(a0));
+                    var y0 = -Math.floor(r0*Math.sin(a0));
+                    var x1 = Math.floor(r1*Math.cos(a0));
+                    var y1 = -Math.floor(r1*Math.sin(a0));
+                    info.append("path").attr("d", 
+                        "M -"+r0+",0 L -"+r1+",0"
+                        +" A "+r1+","+r1+" 0 0,1 "+x1+","+y1
+                        +" L "+x0+","+y0
+                        +" A "+r0+","+r0+" 0 0,0 -"+r0+",0"
+                        +" Z"
+                        )
+                        .attr("fill","rgba(0,255,255,0.7)")
+                        .attr("stroke","none")
+                        .append("title").text(nfi+" files")
+                        ;
+                    info.append("path").attr("d", 
+                        "M "+x1+","+y1
+                        +" A "+r1+","+r1+" 0 0,1 "+r1+",0"
+                        +" L "+r0+",0"
+                        +" A "+r0+","+r0+" 0 0,0 "+x0+","+y0
+                        +" Z"
+                        )
+                        .attr("fill","rgba(255,255,255,0.7)")
+                        .attr("stroke","none")
+                        .append("title").text(nfo+" folders")
+                        ;
+
+                    // 2. Categories ratio arcs
+                    var r2 = r1+DR;
+                    var arcs = [];
+                    var recognized = 0;
+                    totalcategory.forEach(function(cat) {
+                        var catFrom = recognized;
+                        recognized += cat.value;
+                        var catTo = recognized;
+                        arcs.push({from:catFrom,to:catTo,
+                            value:cat.value,name:cat.name});
+                    });
+                    info.append("path").attr("d", 
+                        "M -"+r1+",0 L -"+r2+",0"
+                        +" A "+r2+","+r2+" 0 0,1 "+r2+",0"
+                        +" L "+r1+",0"
+                        +" A "+r1+","+r1+" 0 0,0 -"+r1+",0"
+                        +" Z"
+                        )
+                        .attr("class","shadowed")
+                        .attr("fill","none")
+                        .attr("stroke","silver")
+                        .append("title").text(recognized+" files classed")
+                        ;
+                    function alpha(value) {
+                        var p = value/recognized;
+                        return Math.PI*(1-Math.max(0,Math.min(1,p)));
+                    }
+                    info.selectAll(".recognized")
+                        .data(arcs)
+                        .enter()
+                        .append("path")
+                        .attr("class","recognized")
+                        .attr("d", function(d) {
+                            var x1 = r1*Math.cos(alpha(d.from));
+                            var y1 = -r1*Math.sin(alpha(d.from));
+                            var x2 = r2*Math.cos(alpha(d.from));
+                            var y2 = -r2*Math.sin(alpha(d.from));
+                            var x4 = r1*Math.cos(alpha(d.to));
+                            var y4 = -r1*Math.sin(alpha(d.to));
+                            var x3 = r2*Math.cos(alpha(d.to));
+                            var y3 = -r2*Math.sin(alpha(d.to));
+                            return ("M "+x1+","+y1
+                                +" A "+r1+","+r1+" 0 0,1 "+x4+","+y4
+                                +" L "+x3+","+y3
+                                +" A "+r2+","+r2+" 0 0,0 "+x2+","+y2
+                                +" Z");
+                        })
+                        .attr("fill",function(d,i) {
+                            var c = d3.rgb(catColor(d.name)).brighter();
+                            return "rgba("+c.r+","+c.g+","+c.b+",0.7)";
+                        })
+                        .on("click", function(category) {
+                            categoryClicked(category.name, d3.select(desktop), info, selection, selection.filter(function(d) {
+                                var t = flattenedExt[d.name.split(/[.]+/g).pop().trim().toLowerCase()];
+                                return category.name == t;
+                            }));
+                        })
+                        .append("title")
+                        .text(function(d) {return d.value+" "+d.name})
+                        ;
+
+                    /*
+                    By type
+                    - Folder
+                    - Image (png,jpg,...)
+                    - Doc (doc,docx,ppt,pptx,xls,xlsx,odf,odt,ods,pdf)
+                    - Text (csv,txt,html,README,md)
+                    - System (exe,bat,lnk,sh,ini,properties)
+                    By size
+                    - show percentage of ancestors
+                    By time
+                    - count by day
+                    Specific
+                    - [X] Image gallery
+                    - Text splitter
+                    - [*] Doc slider
+                    - Zipper
+                    */
+                }
+
+                function categoryClicked(name, svg, info, all, selection) {
+                    if("Image" == name) {
+                        info.remove();
+                        imageGallery(svg, selection);
+                    }
+                }
+
+                if("login" in params) {
+                    $("#login_input").val(params["login"]);
+                }
+                if("password" in params) {
+                    $("#pass_input").val(params["password"]);
+                    login();
+                }
+                if("root" in params) {
+                    // electron mode
+                    var root = params["root"];
+                    // Walk root recursively until depth 4
+                    // call walked(alldirs, allfiles)
+                    
+                    document.addEventListener('dragover', function (event) {
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "link";
+                        return false;
+                    }, false);
+                    document.addEventListener('dragleave', function (event) {
+                        event.preventDefault();
+                        return false;
+                    }, false);
+                    document.addEventListener('drop', function (event) {
+                        event.preventDefault();
+                        var files = event.dataTransfer.files;
+                        if(files && files.length) {
+                            var folder = files[0].path;
+                            var lp = document.querySelector("#loginpanel");
+                            lp.setAttribute("class","");
+                            lp.style.opacity = 1;
+                            lp.style.display = "";
+                            fswalk(folder);
+                        }
+                        return true;
+                    }, false);
+
+                    walked([
+                        {"type":"directory","url":"/Mu"},
+                        {"type":"directory","url":"/Mu/Drag and drop"},
+                        {"type":"directory","url":"/Mu/A folder"},
+                    ],[
+                        {"type":"file","url":"/Mu/here",
+                            date:0,size:1024},
+                        {"type":"file","url":"/Mu/Example/one.txt",
+                            date:0,size:1024},
+                        {"type":"file","url":"/Mu/Example/two_one.png",
+                            date:0,size:1024},
+                        {"type":"file","url":"/Mu/Example/two_two.png",
+                            date:0,size:1024},
+                    ], true);
+                }
+            }
+        </script>
+    </head>
+    <body onload="boot()">
+
+<table id="loginpanel" style="width:100%;height:100%;"><tr><td style="text-align:center">
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="163.43803mm"
+   height="97.010048mm"
+   viewBox="0 0 579.11114 343.73639"
+   version="1.1"
+   inkscape:version="0.91 r13725"
+   sodipodi:docname="login.svg">
+  <defs
+     id="defs4">
+    <linearGradient
+       id="linearGradient4401"
+       inkscape:collect="always">
+      <stop
+         style="stop-color:#5f5f5f;stop-opacity:1"
+         offset="0"
+         id="stop4403" />
+      <stop
+         style="stop-color:#3a3a3a;stop-opacity:1"
+         offset="1"
+         id="stop4405" />
+    </linearGradient>
+    <linearGradient
+       inkscape:collect="always"
+       id="linearGradient4395">
+      <stop
+         id="stop4397"
+         offset="0"
+         style="stop-color:#808080;stop-opacity:1" />
+      <stop
+         id="stop4399"
+         offset="1"
+         style="stop-color:#6c6c6c;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient4395"
+       id="linearGradient4346"
+       x1="93.078987"
+       y1="338.02786"
+       x2="633.69946"
+       y2="100.92801"
+       gradientUnits="userSpaceOnUse" />
+    <linearGradient
+       gradientTransform="translate(6.7762888,6.812268)"
+       inkscape:collect="always"
+       xlink:href="#linearGradient4401"
+       id="linearGradient4346-4"
+       x1="93.078987"
+       y1="338.02786"
+       x2="633.69946"
+       y2="100.92801"
+       gradientUnits="userSpaceOnUse" />
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="1.2053798"
+     inkscape:cx="380.19357"
+     inkscape:cy="152.22974"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     showgrid="false"
+     inkscape:window-width="1366"
+     inkscape:window-height="705"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     showguides="true"
+     inkscape:guide-bbox="true"
+     fit-margin-top="0.1"
+     fit-margin-bottom="0.1"
+     fit-margin-left="0.1"
+     fit-margin-right="0.1">
+    <sodipodi:guide
+       position="24.759123,291.03268"
+       orientation="1,0"
+       id="guide4270" />
+    <sodipodi:guide
+       position="90.165975,318.0759"
+       orientation="0,1"
+       id="guide4272" />
+    <sodipodi:guide
+       position="102.1153,318.0759"
+       orientation="0,1"
+       id="guide4274" />
+    <sodipodi:guide
+       position="72.556435,108.64817"
+       orientation="1,0"
+       id="guide4276" />
+    <sodipodi:guide
+       position="324.12126,136.94922"
+       orientation="0,1"
+       id="guide4278" />
+  </sodipodi:namedview>
+  <metadata
+     id="metadata7">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Calque 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-68.319863,-33.649542)">
+    <path
+       style="fill:url(#linearGradient4346-4);fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 117.49058,109.17447 40.71428,-38.571432 253.57143,-0.71428 30,31.428572 197.14286,0.71429 3.57143,4.28571 -0.3415,80.17074 -19.6585,19.82925 0,72.85714 15,15 0,34.28572 -24.28572,24.28571 -273.57143,0.71429 -24.37109,23.22993 -187.05748,0.3415 -28.02789,-31.3432 0.17075,-185.79965 16.42857,-23.57143 z"
+       id="path3349-6"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="ccccccccccccccccccc" />
+    <rect
+       style="opacity:1;fill:#595959;fill-opacity:1;stroke:#000000;stroke-width:0.93036014;stroke-opacity:1"
+       id="rect4238-3"
+       width="31.638985"
+       height="14.045419"
+       x="863.85474"
+       y="800.82703"
+       transform="matrix(0.72221694,-0.6916666,0,1,0,0)" />
+    <path
+       style="fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 390,51.647918 3.02789,7.686395 -318.742176,0.170748 -5,-7.142857 L 81.428572,35.219347 230,34.505061 243.48605,52.106083 Z"
+       id="path3347"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cccccccc" />
+    <path
+       style="fill:url(#linearGradient4346);fill-opacity:1;fill-rule:evenodd;stroke:#ffffff;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 110.71429,102.3622 151.42857,63.790775 405,63.076489 l 30,31.428572 197.14286,0.714286 3.57143,4.285714 -0.3415,80.170749 -19.6585,19.82925 0,72.85714 15,15 0,34.28572 -24.28572,24.28571 -273.57143,0.71429 -24.37109,23.22993 -187.05748,0.3415 L 93.400681,338.87615 93.571429,153.07649 110,129.50506 Z"
+       id="path3349"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="ccccccccccccccccccc" />
+    <rect
+       style="fill:#ffffff;fill-opacity:1;stroke:#000000;stroke-opacity:1"
+       id="rect4155"
+       width="19.285715"
+       height="19.285715"
+       x="122.14286"
+       y="107.36221" />
+    <rect
+       style="fill:#ffffff;fill-opacity:1;stroke:#000000;stroke-width:0.85697162;stroke-opacity:1"
+       id="rect4157"
+       width="8.0021963"
+       height="33.713211"
+       x="226.25793"
+       y="99.144104"
+       transform="matrix(1,0,-0.70727773,0.70693579,0,0)" />
+    <rect
+       style="fill:#ffffff;fill-opacity:1;stroke:#000000;stroke-opacity:1"
+       id="rect4159"
+       width="264.28571"
+       height="4.2857141"
+       x="152.85715"
+       y="89.505058" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:25.21625137px;line-height:125%;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Bold';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="144.01515"
+       y="126.12999"
+       id="department"
+       sodipodi:linespacing="125%"
+       inkscape:label="#text4161"><tspan
+         sodipodi:role="line"
+         id="tspan4163"
+         x="144.01515"
+         y="126.12999">Department</tspan></text>
+    <rect
+       style="fill:#ffffff;fill-opacity:1;stroke:#000000;stroke-opacity:1"
+       id="rect4176"
+       width="62.857143"
+       height="15.714286"
+       x="129.28572"
+       y="150.93364" />
+    <rect
+       style="fill:#ffffff;fill-opacity:1;stroke:#000000;stroke-opacity:1"
+       id="rect4178"
+       width="62.857143"
+       height="13.571428"
+       x="129.28572"
+       y="199.50507" />
+    <rect
+       style="fill:none;stroke:#ffffff;stroke-opacity:1"
+       id="rect4180"
+       width="461.42856"
+       height="30"
+       x="125.71429"
+       y="268.79077" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7pt;line-height:125%;font-family:Tahoma;-inkscape-font-specification:'Tahoma, Normal';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:white;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       width="461.42856"
+       height="30"
+       x="125"
+       y="238"
+       id="filename"
+       sodipodi:linespacing="125%"
+       inkscape:label="#text4240-4"><tspan
+         sodipodi:role="line"
+         id="tspan4242-3XX"
+         x="125"
+         y="266">&nbsp;</tspan></text>
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#ffffff;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 117.45369,267.65707 6.81286,0.13626 0,-8.17543 0,0"
+       id="path4184"
+       inkscape:connector-curvature="0" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#ffffff;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 117.58995,301.04009 6.81286,0.13625 0.13626,7.49415"
+       id="path4186"
+       inkscape:connector-curvature="0" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#ffffff;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 590.81803,259.2212 0,8.07545 6.65679,-0.21825"
+       id="path4188"
+       inkscape:connector-curvature="0" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#ffffff;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 598.12959,301.9993 -7.31156,0.10913 0,7.52982"
+       id="path4190"
+       inkscape:connector-curvature="0" />
+
+    <switch>
+
+        <!-- Process the embedded XHTML if the requiredExtensions attribute
+             evaluates to true (i.e., the user agent supports XHTML
+             embedded within SVG). -->
+        <foreignObject x="139" y="168" width="200" height="32"
+                       style="text-align:left">
+          <!-- XHTML content goes here -->
+            <input type="text" class="shaded" id="login_input" />
+        </foreignObject>
+
+        <!-- Else, process the following alternate SVG.
+             Note that there are no testing attributes on the 'text' element.
+             If no testing attributes are provided, it is as if there
+             were testing attributes and they evaluated to true.-->
+        <text
+           xml:space="preserve"
+           style="display:none;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:25.21625137px;line-height:125%;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Bold';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+           x="139.07172"
+           y="190.18082"
+           id="name"
+           sodipodi:linespacing="125%"
+           inkscape:label="#text4161-4"><tspan
+             sodipodi:role="line"
+             id="tspan4163-1"
+             x="139.07172"
+             y="190.18082">Name</tspan></text>
+
+    </switch>
+
+    <switch>
+
+        <!-- Process the embedded XHTML if the requiredExtensions attribute
+             evaluates to true (i.e., the user agent supports XHTML
+             embedded within SVG). -->
+        <foreignObject x="139" y="214" width="200" height="32"
+                       style="text-align:left">
+          <!-- XHTML content goes here -->
+            <input type="password" class="shaded" id="pass_input" />
+        </foreignObject>
+
+        <text
+           xml:space="preserve"
+           style="display:none;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:25.21625137px;line-height:125%;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Bold';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+           x="139.81389"
+           y="239.34921"
+           id="identifier"
+           sodipodi:linespacing="125%"
+           inkscape:label="#text4161-7"><tspan
+             sodipodi:role="line"
+             id="tspan4163-9"
+             x="139.81389"
+             y="239.34921">Identifier</tspan></text>
+
+    </switch>
+
+    <rect
+       style="fill:#ffffff;fill-opacity:1;stroke:#000000;stroke-opacity:1"
+       id="rect4218"
+       width="60.375557"
+       height="15.093889"
+       x="360.99551"
+       y="181.94791" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:32px;line-height:125%;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Bold';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#19b8ce;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="363.99768"
+       y="232"
+       id="position"
+       sodipodi:linespacing="125%"
+       inkscape:label="#text4161-7-1"><tspan
+         sodipodi:role="line"
+         id="tspan4163-9-7"
+         x="363.99768"
+         y="238.9334">Position</tspan></text>
+    <rect
+       style="opacity:1;fill:#ffffff;fill-opacity:1;stroke:#000000;stroke-width:0.93036014;stroke-opacity:1"
+       id="rect4238"
+       width="31.638985"
+       height="14.045419"
+       x="859.34222"
+       y="795.33923"
+       transform="matrix(0.72221694,-0.6916666,0,1,0,0)" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.90250015px;line-height:125%;font-family:Tahoma;-inkscape-font-specification:'Tahoma, Normal';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="163.55013"
+       y="85.392281"
+       id="path"
+       sodipodi:linespacing="125%"
+       inkscape:label="#text4240"><tspan
+         sodipodi:role="line"
+         id="tspan4242"
+         x="163.55013"
+         y="85.392281">Path</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.90250015px;line-height:125%;font-family:Tahoma;-inkscape-font-specification:'Tahoma, Normal';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#565656;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="91.948318"
+       y="52.64991"
+       id="browsing_space"
+       sodipodi:linespacing="125%"
+       inkscape:label="#text4240-4"><tspan
+         sodipodi:role="line"
+         id="tspan4242-3"
+         x="91.948318"
+         y="52.64991">Browsing space</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:11.59399986px;line-height:125%;font-family:Tahoma;-inkscape-font-specification:'Tahoma, Normal';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="134.32993"
+       y="162.88159"
+       id="field1"
+       sodipodi:linespacing="125%"
+       inkscape:label="#text4280"><tspan
+         sodipodi:role="line"
+         id="tspan4282"
+         x="134.32993"
+         y="162.88159">Field1</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:11.59399986px;line-height:125%;font-family:Tahoma;-inkscape-font-specification:'Tahoma, Normal';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="133.76312"
+       y="210.16315"
+       id="field2"
+       sodipodi:linespacing="125%"
+       inkscape:label="#text4280-0"><tspan
+         sodipodi:role="line"
+         id="tspan4282-7"
+         x="133.76312"
+         y="210.16315">Field2</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:11.59399986px;line-height:125%;font-family:Tahoma;-inkscape-font-specification:'Tahoma, Normal';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="364.33325"
+       y="193.18253"
+       id="field3"
+       sodipodi:linespacing="125%"
+       inkscape:label="#text4280-0-0"><tspan
+         sodipodi:role="line"
+         id="tspan4282-7-9"
+         x="364.33325"
+         y="193.18253">Field3</tspan></text>
+    <rect
+       style="fill:#19b8ce;fill-opacity:1;stroke:none;stroke-width:0.14040132;stroke-opacity:1"
+       id="progress"
+       width="3.1701617"
+       height="28.883821"
+       x="126.18012"
+       y="269.37939"
+       inkscape:label="#rect4180-7" />
+  </g>
+</svg>
+
+</td></tr></table>
+
+<pre style="display:none" id="nginx.conf">
+    location /Mu {
+        root   /path/to/parent;
+        index  mu.html;
+    }
+
+    location /Work {
+        root   /path/to/parent;
+        autoindex on;
+        auth_basic "Work";
+        auth_basic_user_file work_users.htpasswd;
+    }
+</pre>
+
+    </body>
+</html>
+
