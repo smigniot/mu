@@ -1,6 +1,10 @@
 # mu
 A visual file manager
 
+# Windows
+
+Download and run : https://github.com/smigniot/mu/releases/download/1.0/Mu_win64_1.0.zip
+
 # Linux
 
 Download Electron :
