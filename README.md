@@ -41,7 +41,7 @@ Download and run : https://github.com/smigniot/mu/releases/download/1.0/Mu_linux
 * Clic on green arcs to display image galleries
 
 
-# Build from ource
+# Build from source
 
 Download Electron :
 ```wget https://github.com/electron/electron/releases/download/v1.2.1/electron-v1.2.1-linux-x64.zip```
