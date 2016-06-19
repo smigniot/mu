@@ -5,23 +5,23 @@ A visual file manager
 
 Drag and drop a folder, and explore.
 
-![1_Explore.png](1_Explore.png)
+![1_Explore.png](app/1_Explore.png)
 
 Type a filtering regular expression
 
-![2_Filter.png](2_Filter.png)
+![2_Filter.png](app/2_Filter.png)
 
 Use the lasso to select
 
-![3_Lasso.png](3_Lasso.png)
+![3_Lasso.png](app/3_Lasso.png)
 
 Identify documents, images, text
 
-![4_Classify.png](4_Classify.png)
+![4_Classify.png](app/4_Classify.png)
 
 View images in a gallery
 
-![5_ImageGallery.png](5_ImageGallery.png)
+![5_ImageGallery.png](app/5_ImageGallery.png)
 
 # Windows
 
